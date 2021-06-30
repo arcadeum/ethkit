@@ -23,13 +23,12 @@ import (
 	"io/ioutil"
 	"math/big"
 
-	"github.com/ethereum/go-ethereum/accounts"
-	"github.com/ethereum/go-ethereum/accounts/external"
-	"github.com/ethereum/go-ethereum/accounts/keystore"
-	"github.com/ethereum/go-ethereum/common"
-	"github.com/ethereum/go-ethereum/core/types"
-	"github.com/ethereum/go-ethereum/crypto"
-	"github.com/ethereum/go-ethereum/log"
+	"github.com/0xsequence/ethkit/go-ethereum/accounts"
+	"github.com/0xsequence/ethkit/go-ethereum/accounts/keystore"
+	"github.com/0xsequence/ethkit/go-ethereum/common"
+	"github.com/0xsequence/ethkit/go-ethereum/core/types"
+	"github.com/0xsequence/ethkit/go-ethereum/crypto"
+	"github.com/0xsequence/ethkit/go-ethereum/log"
 )
 
 // ErrNoChainID is returned whenever the user failed to specify a chain id.
@@ -157,18 +156,4 @@ func NewKeyedTransactorWithChainID(key *ecdsa.PrivateKey, chainID *big.Int) (*Tr
 			return tx.WithSignature(signer, signature)
 		},
 	}, nil
-}
-
-// NewClefTransactor is a utility method to easily create a transaction signer
-// with a clef backend.
-func NewClefTransactor(clef *external.ExternalSigner, account accounts.Account) *TransactOpts {
-	return &TransactOpts{
-		From: account.Address,
-		Signer: func(address common.Address, transaction *types.Transaction) (*types.Transaction, error) {
-			if address != account.Address {
-				return nil, ErrNotAuthorized
-			}
-			return clef.SignTx(account, transaction, nil) // Clef enforces its own chain id
-		},
-	}
 }

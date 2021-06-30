@@ -24,7 +24,6 @@ import (
 	"fmt"
 	"io"
 	"io/ioutil"
-	"mime"
 	"net/http"
 	"net/url"
 	"sync"
@@ -199,86 +198,4 @@ func (hc *httpConn) doRequest(ctx context.Context, msg interface{}) (io.ReadClos
 		}
 	}
 	return resp.Body, nil
-}
-
-// httpServerConn turns a HTTP connection into a Conn.
-type httpServerConn struct {
-	io.Reader
-	io.Writer
-	r *http.Request
-}
-
-func newHTTPServerConn(r *http.Request, w http.ResponseWriter) ServerCodec {
-	body := io.LimitReader(r.Body, maxRequestContentLength)
-	conn := &httpServerConn{Reader: body, Writer: w, r: r}
-	return NewCodec(conn)
-}
-
-// Close does nothing and always returns nil.
-func (t *httpServerConn) Close() error { return nil }
-
-// RemoteAddr returns the peer address of the underlying connection.
-func (t *httpServerConn) RemoteAddr() string {
-	return t.r.RemoteAddr
-}
-
-// SetWriteDeadline does nothing and always returns nil.
-func (t *httpServerConn) SetWriteDeadline(time.Time) error { return nil }
-
-// ServeHTTP serves JSON-RPC requests over HTTP.
-func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-	// Permit dumb empty requests for remote health-checks (AWS)
-	if r.Method == http.MethodGet && r.ContentLength == 0 && r.URL.RawQuery == "" {
-		w.WriteHeader(http.StatusOK)
-		return
-	}
-	if code, err := validateRequest(r); err != nil {
-		http.Error(w, err.Error(), code)
-		return
-	}
-	// All checks passed, create a codec that reads directly from the request body
-	// until EOF, writes the response to w, and orders the server to process a
-	// single request.
-	ctx := r.Context()
-	ctx = context.WithValue(ctx, "remote", r.RemoteAddr)
-	ctx = context.WithValue(ctx, "scheme", r.Proto)
-	ctx = context.WithValue(ctx, "local", r.Host)
-	if ua := r.Header.Get("User-Agent"); ua != "" {
-		ctx = context.WithValue(ctx, "User-Agent", ua)
-	}
-	if origin := r.Header.Get("Origin"); origin != "" {
-		ctx = context.WithValue(ctx, "Origin", origin)
-	}
-
-	w.Header().Set("content-type", contentType)
-	codec := newHTTPServerConn(r, w)
-	defer codec.close()
-	s.serveSingleRequest(ctx, codec)
-}
-
-// validateRequest returns a non-zero response code and error message if the
-// request is invalid.
-func validateRequest(r *http.Request) (int, error) {
-	if r.Method == http.MethodPut || r.Method == http.MethodDelete {
-		return http.StatusMethodNotAllowed, errors.New("method not allowed")
-	}
-	if r.ContentLength > maxRequestContentLength {
-		err := fmt.Errorf("content length too large (%d>%d)", r.ContentLength, maxRequestContentLength)
-		return http.StatusRequestEntityTooLarge, err
-	}
-	// Allow OPTIONS (regardless of content-type)
-	if r.Method == http.MethodOptions {
-		return 0, nil
-	}
-	// Check content-type
-	if mt, _, err := mime.ParseMediaType(r.Header.Get("content-type")); err == nil {
-		for _, accepted := range acceptedContentTypes {
-			if accepted == mt {
-				return 0, nil
-			}
-		}
-	}
-	// Invalid content-type
-	err := fmt.Errorf("invalid content type, only %s is supported", contentType)
-	return http.StatusUnsupportedMediaType, err
 }
