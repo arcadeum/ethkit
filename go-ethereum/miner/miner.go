@@ -42,14 +42,15 @@ type Backend interface {
 
 // Config is the configuration parameters of mining.
 type Config struct {
-	Etherbase common.Address `toml:",omitempty"` // Public address for block mining rewards (default = first account)
-	Notify    []string       `toml:",omitempty"` // HTTP URL list to be notified of new work packages(only useful in ethash).
-	ExtraData hexutil.Bytes  `toml:",omitempty"` // Block extra data set by the miner
-	GasFloor  uint64         // Target gas floor for mined blocks.
-	GasCeil   uint64         // Target gas ceiling for mined blocks.
-	GasPrice  *big.Int       // Minimum gas price for mining a transaction
-	Recommit  time.Duration  // The time interval for miner to re-create mining work.
-	Noverify  bool           // Disable remote mining solution verification(only useful in ethash).
+	Etherbase  common.Address `toml:",omitempty"` // Public address for block mining rewards (default = first account)
+	Notify     []string       `toml:",omitempty"` // HTTP URL list to be notified of new work packages (only useful in ethash).
+	NotifyFull bool           `toml:",omitempty"` // Notify with pending block headers instead of work packages
+	ExtraData  hexutil.Bytes  `toml:",omitempty"` // Block extra data set by the miner
+	GasFloor   uint64         // Target gas floor for mined blocks.
+	GasCeil    uint64         // Target gas ceiling for mined blocks.
+	GasPrice   *big.Int       // Minimum gas price for mining a transaction
+	Recommit   time.Duration  // The time interval for miner to re-create mining work.
+	Noverify   bool           // Disable remote mining solution verification(only useful in ethash).
 }
 
 // Miner creates blocks and searches for proof-of-work values.
@@ -85,15 +86,22 @@ func New(eth Backend, config *Config, chainConfig *params.ChainConfig, mux *even
 // and halt your mining operation for as long as the DOS continues.
 func (miner *Miner) update() {
 	events := miner.mux.Subscribe(downloader.StartEvent{}, downloader.DoneEvent{}, downloader.FailedEvent{})
-	defer events.Unsubscribe()
+	defer func() {
+		if !events.Closed() {
+			events.Unsubscribe()
+		}
+	}()
 
 	shouldStart := false
 	canStart := true
+	dlEventCh := events.Chan()
 	for {
 		select {
-		case ev := <-events.Chan():
+		case ev := <-dlEventCh:
 			if ev == nil {
-				return
+				// Unsubscription done, stop listening
+				dlEventCh = nil
+				continue
 			}
 			switch ev.Data.(type) {
 			case downloader.StartEvent:
@@ -105,16 +113,24 @@ func (miner *Miner) update() {
 					shouldStart = true
 					log.Info("Mining aborted due to sync")
 				}
-			case downloader.DoneEvent, downloader.FailedEvent:
+			case downloader.FailedEvent:
 				canStart = true
 				if shouldStart {
 					miner.SetEtherbase(miner.coinbase)
 					miner.worker.start()
 				}
+			case downloader.DoneEvent:
+				canStart = true
+				if shouldStart {
+					miner.SetEtherbase(miner.coinbase)
+					miner.worker.start()
+				}
+				// Stop reacting to downloader events
+				events.Unsubscribe()
 			}
 		case addr := <-miner.startCh:
+			miner.SetEtherbase(addr)
 			if canStart {
-				miner.SetEtherbase(addr)
 				miner.worker.start()
 			}
 			shouldStart = true
@@ -144,7 +160,7 @@ func (miner *Miner) Mining() bool {
 	return miner.worker.isRunning()
 }
 
-func (miner *Miner) HashRate() uint64 {
+func (miner *Miner) Hashrate() uint64 {
 	if pow, ok := miner.engine.(consensus.PoW); ok {
 		return uint64(pow.Hashrate())
 	}
