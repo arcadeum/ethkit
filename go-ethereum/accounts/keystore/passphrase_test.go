@@ -20,7 +20,7 @@ import (
 	"io/ioutil"
 	"testing"
 
-	"github.com/0xsequence/ethkit/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/common"
 )
 
 const (

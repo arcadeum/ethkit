@@ -22,7 +22,7 @@ import (
 	"os"
 	"path/filepath"
 
-	"github.com/0xsequence/ethkit/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/common"
 )
 
 type keyStorePlain struct {

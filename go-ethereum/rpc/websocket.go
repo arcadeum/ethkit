@@ -19,11 +19,16 @@ package rpc
 import (
 	"context"
 	"encoding/base64"
+	"fmt"
 	"net/http"
 	"net/url"
+	"os"
+	"strings"
 	"sync"
 	"time"
 
+	mapset "github.com/deckarep/golang-set"
+	"github.com/ethereum/go-ethereum/log"
 	"github.com/gorilla/websocket"
 )
 
@@ -35,6 +40,72 @@ const (
 )
 
 var wsBufferPool = new(sync.Pool)
+
+// WebsocketHandler returns a handler that serves JSON-RPC to WebSocket connections.
+//
+// allowedOrigins should be a comma-separated list of allowed origin URLs.
+// To allow connections with any origin, pass "*".
+func (s *Server) WebsocketHandler(allowedOrigins []string) http.Handler {
+	var upgrader = websocket.Upgrader{
+		ReadBufferSize:  wsReadBuffer,
+		WriteBufferSize: wsWriteBuffer,
+		WriteBufferPool: wsBufferPool,
+		CheckOrigin:     wsHandshakeValidator(allowedOrigins),
+	}
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		conn, err := upgrader.Upgrade(w, r, nil)
+		if err != nil {
+			log.Debug("WebSocket upgrade failed", "err", err)
+			return
+		}
+		codec := newWebsocketCodec(conn)
+		s.ServeCodec(codec, 0)
+	})
+}
+
+// wsHandshakeValidator returns a handler that verifies the origin during the
+// websocket upgrade process. When a '*' is specified as an allowed origins all
+// connections are accepted.
+func wsHandshakeValidator(allowedOrigins []string) func(*http.Request) bool {
+	origins := mapset.NewSet()
+	allowAllOrigins := false
+
+	for _, origin := range allowedOrigins {
+		if origin == "*" {
+			allowAllOrigins = true
+		}
+		if origin != "" {
+			origins.Add(strings.ToLower(origin))
+		}
+	}
+	// allow localhost if no allowedOrigins are specified.
+	if len(origins.ToSlice()) == 0 {
+		origins.Add("http://localhost")
+		if hostname, err := os.Hostname(); err == nil {
+			origins.Add("http://" + strings.ToLower(hostname))
+		}
+	}
+	log.Debug(fmt.Sprintf("Allowed origin(s) for WS RPC interface %v", origins.ToSlice()))
+
+	f := func(req *http.Request) bool {
+		// Skip origin verification if no Origin header is present. The origin check
+		// is supposed to protect against browser based attacks. Browsers always set
+		// Origin. Non-browser software can put anything in origin and checking it doesn't
+		// provide additional security.
+		if _, ok := req.Header["Origin"]; !ok {
+			return true
+		}
+		// Verify origin against whitelist.
+		origin := strings.ToLower(req.Header.Get("Origin"))
+		if allowAllOrigins || origins.Contains(origin) {
+			return true
+		}
+		log.Warn("Rejected WebSocket connection", "origin", origin)
+		return false
+	}
+
+	return f
+}
 
 type wsHandshakeError struct {
 	err    error

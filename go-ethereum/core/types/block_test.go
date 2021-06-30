@@ -23,11 +23,11 @@ import (
 	"reflect"
 	"testing"
 
-	"github.com/0xsequence/ethkit/go-ethereum/common"
-	"github.com/0xsequence/ethkit/go-ethereum/common/math"
-	"github.com/0xsequence/ethkit/go-ethereum/crypto"
-	"github.com/0xsequence/ethkit/go-ethereum/params"
-	"github.com/0xsequence/ethkit/go-ethereum/rlp"
+	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/common/math"
+	"github.com/ethereum/go-ethereum/crypto"
+	"github.com/ethereum/go-ethereum/params"
+	"github.com/ethereum/go-ethereum/rlp"
 	"golang.org/x/crypto/sha3"
 )
 

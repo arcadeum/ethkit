@@ -39,7 +39,7 @@ import (
 	"math/big"
 	"testing"
 
-	"github.com/0xsequence/ethkit/go-ethereum/crypto"
+	"github.com/ethereum/go-ethereum/crypto"
 )
 
 func TestKDF(t *testing.T) {

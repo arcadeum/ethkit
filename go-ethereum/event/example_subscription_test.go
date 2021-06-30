@@ -19,7 +19,7 @@ package event_test
 import (
 	"fmt"
 
-	"github.com/0xsequence/ethkit/go-ethereum/event"
+	"github.com/ethereum/go-ethereum/event"
 )
 
 func ExampleNewSubscription() {

@@ -32,11 +32,11 @@ import (
 	"sync"
 	"time"
 
-	"github.com/0xsequence/ethkit/go-ethereum/accounts"
-	"github.com/0xsequence/ethkit/go-ethereum/common"
-	"github.com/0xsequence/ethkit/go-ethereum/core/types"
-	"github.com/0xsequence/ethkit/go-ethereum/crypto"
-	"github.com/0xsequence/ethkit/go-ethereum/event"
+	"github.com/ethereum/go-ethereum/accounts"
+	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/core/types"
+	"github.com/ethereum/go-ethereum/crypto"
+	"github.com/ethereum/go-ethereum/event"
 )
 
 var (
