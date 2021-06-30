@@ -214,7 +214,7 @@ func (w *Wallet) SignTx(tx *types.Transaction, chainID *big.Int) (*types.Transac
 		return nil, err
 	}
 
-	msg, err := signedTx.AsMessage(types.HomesteadSigner{})
+	msg, err := signedTx.AsMessage(types.HomesteadSigner{}, nil)
 	if err != nil {
 		return nil, err
 	}
